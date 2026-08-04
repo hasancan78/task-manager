@@ -22,38 +22,16 @@ Modern web teknolojileri ile geliştirilmiş, kullanıcıların günlük görevl
 - **Durum Yönetimi:** Custom React Hooks (`useLocalStorage`, vb.)
 
 ## 📂 Proje Yapısı
-
-```text
-src/
-├── Components/         # Tekrar kullanılabilir UI bileşenleri (Navbar, Modal, TaskCard vb.)
-├── Pages/              # Sayfa bileşenleri (HomePage, AboutPage)
-├── Interfaces/         # Sabitler ve Veri Tipleri (taskTypes.js)
-├── hooks/              # Custom React Hook'ları (useLocalStorage.js)
-├── App.jsx             # Ana Uygulama Düzeni ve React Router yapılandırması
-└── main.jsx            # React Entry Point
-
-
-##Yerelde Çalıştırma (Kurulum)
-Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları izleyin
-
-```text
-Depoyu klonlayın:
-bash
-
-
-git clone https://github.com/hasancan78/task-manager.git
-Proje dizinine gidin:
-bash
-
-
-cd task-manager
-Bağımlılıkları yükleyin (Node.js v24+ gerektirir):
-bash
-
-
-npm install
-Geliştirme sunucusunu başlatın:
-bash
-
-
-npm run dev
+- `src/Components/` - Tekrar kullanılabilir UI bileşenleri (Navbar, Modal, TaskCard vb.)
+- `src/Pages/` - Sayfa bileşenleri (HomePage, AboutPage)
+- `src/Interfaces/` - Sabitler ve Veri Tipleri (taskTypes.js)
+- `src/hooks/` - Custom React Hook'ları (useLocalStorage.js)
+- `src/App.jsx` - Ana Uygulama Düzeni ve React Router yapılandırması
+- `src/main.jsx` - React Entry Point
+## 🚀 Yerelde Çalıştırma (Kurulum)
+- **Depoyu Klonlama:** `git clone https://github.com/hasancan78/task-manager.git`
+- **Proje Dizinine Geçiş:** `cd task-manager`
+- **Bağımlılıkları Yükleme:** `npm install` *(Node.js v24+ gerektirir)*
+- **Geliştirme Sunucusunu Başlatma:** `npm run dev`
+---
+*Bu proje Web Geliştirme Eğitimi projesi yönergesi kapsamında tasarlanmış ve geliştirilmiştir.*
