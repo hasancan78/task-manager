@@ -33,9 +33,10 @@ src/
 └── main.jsx            # React Entry Point
 
 
-Yerelde Çalıştırma (Kurulum)
-Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları izleyin:
+##Yerelde Çalıştırma (Kurulum)
+Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları izleyin
 
+```text
 Depoyu klonlayın:
 bash
 
