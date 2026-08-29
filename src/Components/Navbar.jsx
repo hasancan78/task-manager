@@ -8,8 +8,8 @@ export default function Navbar({ onInstall, isInstallable, onRequestPermission, 
     <nav className="sticky top-0 z-50 bg-gray-950/80 backdrop-blur-xl border-b border-white/10">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2 group">
-            <span className="text-2xl group-hover:scale-110 transition-transform duration-300">✅</span>
+          <Link to="/" className="flex items-center gap-3 group">
+            <img src="/logo.jpg" alt="TaskFlow Logo" className="h-8 w-auto rounded-lg object-contain bg-white/10 group-hover:scale-110 transition-transform duration-300" />
             <span className="text-xl font-bold bg-gradient-to-r from-violet-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent">
               TaskFlow
             </span>
