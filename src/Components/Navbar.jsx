@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 
-export default function Navbar() {
+export default function Navbar({ onInstall, isInstallable, onRequestPermission, permissionStatus, hasNotificationSupport }) {
   const location = useLocation()
   const isActive = (path) => location.pathname === path
 
@@ -15,6 +15,38 @@ export default function Navbar() {
             </span>
           </Link>
           <div className="flex items-center gap-1">
+            {/* Bildirim izni butonu */}
+            {hasNotificationSupport && permissionStatus !== 'granted' && (
+              <button
+                onClick={onRequestPermission}
+                className="px-3 py-2 rounded-xl text-sm font-medium transition-all duration-300 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 flex items-center gap-1.5"
+                title="Bildirimleri Aç"
+              >
+                <span>🔔</span>
+                <span className="hidden sm:inline">Bildirimleri Aç</span>
+              </button>
+            )}
+            {hasNotificationSupport && permissionStatus === 'granted' && (
+              <span
+                className="px-3 py-2 rounded-xl text-sm text-emerald-400 flex items-center gap-1.5"
+                title="Bildirimler aktif"
+              >
+                <span>🔔</span>
+                <span className="hidden sm:inline text-xs">Aktif</span>
+              </span>
+            )}
+
+            {/* PWA Kurulum butonu */}
+            {isInstallable && (
+              <button
+                onClick={onInstall}
+                className="px-3 py-2 rounded-xl text-sm font-medium transition-all duration-300 bg-gradient-to-r from-violet-500/20 to-cyan-500/20 text-white border border-violet-500/30 hover:from-violet-500/30 hover:to-cyan-500/30 flex items-center gap-1.5"
+              >
+                <span>📲</span>
+                <span className="hidden sm:inline">Yükle</span>
+              </button>
+            )}
+
             <Link
               to="/"
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${

@@ -2,8 +2,11 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Navbar from './Components/Navbar'
 import HomePage from './Pages/HomePage'
 import AboutPage from './Pages/AboutPage'
+import { useInstallPrompt } from './hooks/useInstallPrompt'
 
 export default function App() {
+  const { isInstalled, isInstallable, installApp } = useInstallPrompt()
+
   return (
     <Router>
       <div className="min-h-screen bg-gray-950 font-['Inter',sans-serif]">
@@ -16,13 +19,26 @@ export default function App() {
 
         {/* Content */}
         <div className="relative z-10">
-          <Navbar />
-          <main className="pb-12">
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/hakkinda" element={<AboutPage />} />
-            </Routes>
-          </main>
+          <Routes>
+            <Route path="/" element={
+              <HomePage
+                isInstallable={isInstallable}
+                installApp={installApp}
+              />
+            } />
+            <Route path="/hakkinda" element={
+              <>
+                <Navbar
+                  isInstallable={isInstallable}
+                  onInstall={installApp}
+                  hasNotificationSupport={false}
+                  permissionStatus="default"
+                  onRequestPermission={() => {}}
+                />
+                <main className="pb-12"><AboutPage /></main>
+              </>
+            } />
+          </Routes>
         </div>
       </div>
     </Router>

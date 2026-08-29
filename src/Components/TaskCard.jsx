@@ -1,4 +1,4 @@
-import { PRIORITIES, CATEGORIES } from '../Interfaces/taskTypes'
+import { PRIORITIES, CATEGORIES, REMINDER_OPTIONS } from '../Interfaces/taskTypes'
 
 export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
   const priorityInfo = Object.values(PRIORITIES).find(p => p.value === task.priority) || PRIORITIES.MEDIUM
@@ -6,6 +6,56 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
   const createdDate = new Date(task.createdAt).toLocaleDateString('tr-TR', {
     day: 'numeric', month: 'short', year: 'numeric'
   })
+
+  const getDueDateStatus = () => {
+    if (!task.dueDate) return null
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const dueDate = new Date(task.dueDate)
+    dueDate.setHours(0, 0, 0, 0)
+
+    const diffTime = dueDate - today
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+    const timeStr = task.dueTime ? `, ${task.dueTime}` : ''
+    const dateFormatted = dueDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) + timeStr
+
+    if (task.completed) {
+      return <span className="text-gray-500">🗓️ {dateFormatted}</span>
+    } else if (diffDays < 0) {
+      return <span className="text-rose-400 font-medium">⚠️ Geçti ({dateFormatted})</span>
+    } else if (diffDays === 0) {
+      return <span className="text-amber-400 font-medium">⏳ Bugün ({dateFormatted})</span>
+    } else if (diffDays <= 2) {
+      return <span className="text-amber-300">🗓️ {dateFormatted} ({diffDays} gün)</span>
+    } else {
+      return <span>🗓️ {dateFormatted}</span>
+    }
+  }
+
+  const getReminderBadge = () => {
+    if (task.reminderMinutes == null || task.reminderMinutes < 0) return null
+    if (!task.dueDate || !task.dueTime) return null
+
+    const reminderInfo = REMINDER_OPTIONS.find(r => r.value === task.reminderMinutes)
+    const label = reminderInfo ? reminderInfo.label : 'Hatırlatıcı'
+
+    if (task.notified) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          ✅ Bildirildi
+        </span>
+      )
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs bg-violet-500/10 text-violet-400 border border-violet-500/20 animate-pulse">
+        🔔 {label}
+      </span>
+    )
+  }
 
   return (
     <div className={`group bg-white/5 backdrop-blur-xl border rounded-2xl p-5 transition-all duration-300 hover:shadow-lg hover:shadow-violet-500/5 hover:border-white/20 ${
@@ -40,6 +90,7 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium border ${priorityInfo.bgClass} ${priorityInfo.textClass} ${priorityInfo.borderClass}`}>
               {priorityInfo.label}
             </span>
+            {getReminderBadge()}
           </div>
 
           {task.description && (
@@ -50,12 +101,18 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
             </p>
           )}
 
-          <div className="flex items-center gap-3 text-xs text-gray-500">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
             <span className="flex items-center gap-1">
               {categoryInfo.icon} {categoryInfo.label}
             </span>
             <span>•</span>
-            <span>{createdDate}</span>
+            <span title="Oluşturulma">📝 {createdDate}</span>
+            {task.dueDate && (
+              <>
+                <span>•</span>
+                {getDueDateStatus()}
+              </>
+            )}
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PRIORITIES, CATEGORIES } from '../Interfaces/taskTypes'
+import { PRIORITIES, CATEGORIES, REMINDER_OPTIONS } from '../Interfaces/taskTypes'
 
 export default function TaskForm({ onAddTask }) {
   const [isOpen, setIsOpen] = useState(false)
@@ -7,6 +7,9 @@ export default function TaskForm({ onAddTask }) {
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState(PRIORITIES.MEDIUM.value)
   const [category, setCategory] = useState('personal')
+  const [dueDate, setDueDate] = useState('')
+  const [dueTime, setDueTime] = useState('')
+  const [reminderMinutes, setReminderMinutes] = useState(-1)
   const [error, setError] = useState('')
 
   const handleSubmit = (e) => {
@@ -15,11 +18,26 @@ export default function TaskForm({ onAddTask }) {
       setError('Görev başlığı boş bırakılamaz!')
       return
     }
-    onAddTask({ title: title.trim(), description: description.trim(), priority, category })
+    if (reminderMinutes >= 0 && (!dueDate || !dueTime)) {
+      setError('Hatırlatıcı için tarih ve saat seçmelisiniz!')
+      return
+    }
+    onAddTask({
+      title: title.trim(),
+      description: description.trim(),
+      priority,
+      category,
+      dueDate,
+      dueTime,
+      reminderMinutes: dueDate && dueTime ? reminderMinutes : -1,
+    })
     setTitle('')
     setDescription('')
     setPriority(PRIORITIES.MEDIUM.value)
     setCategory('personal')
+    setDueDate('')
+    setDueTime('')
+    setReminderMinutes(-1)
     setError('')
     setIsOpen(false)
   }
@@ -45,7 +63,7 @@ export default function TaskForm({ onAddTask }) {
         </span>
       </button>
 
-      <div className={`transition-all duration-500 ease-in-out ${isOpen ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'} overflow-hidden`}>
+      <div className={`transition-all duration-500 ease-in-out ${isOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'} overflow-hidden`}>
         <form onSubmit={handleSubmit} className="p-5 pt-0 space-y-4">
           <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-4" />
 
@@ -106,6 +124,56 @@ export default function TaskForm({ onAddTask }) {
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Tarih, Saat ve Hatırlatıcı */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
+            <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
+              <span>🔔</span> Hatırlatıcı Ayarları
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">Bitiş Tarihi</label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-gray-900 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300 [color-scheme:dark]"
+                  id="task-duedate-input"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">Saat</label>
+                <input
+                  type="time"
+                  value={dueTime}
+                  onChange={(e) => setDueTime(e.target.value)}
+                  disabled={!dueDate}
+                  className="w-full px-3 py-2.5 bg-gray-900 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed [color-scheme:dark]"
+                  id="task-duetime-input"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">Ne Zaman Hatırlatsın?</label>
+                <select
+                  value={reminderMinutes}
+                  onChange={(e) => setReminderMinutes(Number(e.target.value))}
+                  disabled={!dueDate || !dueTime}
+                  className="w-full px-3 py-2.5 bg-gray-900 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300 appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  id="task-reminder-select"
+                >
+                  {REMINDER_OPTIONS.map((r) => (
+                    <option key={r.value} value={r.value}>{r.icon} {r.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {dueDate && dueTime && reminderMinutes >= 0 && (
+              <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+                <span>🔔</span>
+                <span>Hatırlatıcı aktif — bildirim alacaksınız</span>
+              </div>
+            )}
           </div>
 
           <button

@@ -21,6 +21,17 @@ export const FILTERS = {
   COMPLETED: 'completed',
 }
 
+// Hatırlatıcı seçenekleri
+export const REMINDER_OPTIONS = [
+  { value: -1, label: 'Hatırlatma', icon: '🔕' },
+  { value: 0, label: 'Tam zamanında', icon: '🔔' },
+  { value: 5, label: '5 dakika önce', icon: '⏰' },
+  { value: 15, label: '15 dakika önce', icon: '⏰' },
+  { value: 30, label: '30 dakika önce', icon: '⏰' },
+  { value: 60, label: '1 saat önce', icon: '🕐' },
+  { value: 1440, label: '1 gün önce', icon: '📅' },
+]
+
 // Varsayılan görev yapısı
 export const createDefaultTask = () => ({
   id: '',
@@ -30,4 +41,8 @@ export const createDefaultTask = () => ({
   category: 'personal',
   completed: false,
   createdAt: new Date().toISOString(),
+  dueDate: '',
+  dueTime: '',
+  reminderMinutes: -1,
+  notified: false,
 })

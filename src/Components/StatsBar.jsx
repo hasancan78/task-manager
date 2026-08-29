@@ -4,15 +4,28 @@ export default function StatsBar({ tasks }) {
   const active = total - completed
   const progress = total > 0 ? Math.round((completed / total) * 100) : 0
 
+  // Yaklaşan hatırlatıcılar (bugün veya yarın)
+  const now = new Date()
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  tomorrow.setHours(23, 59, 59, 999)
+
+  const upcomingReminders = tasks.filter(t => {
+    if (t.completed || t.notified || !t.dueDate || !t.dueTime || t.reminderMinutes == null || t.reminderMinutes < 0) return false
+    const dueDateTime = new Date(`${t.dueDate}T${t.dueTime}`)
+    return dueDateTime <= tomorrow && dueDateTime >= now
+  }).length
+
   const stats = [
     { label: 'Toplam Görev', count: total, icon: '📋', gradient: 'from-violet-500 to-purple-600', bg: 'bg-violet-500/10', border: 'border-violet-500/20' },
     { label: 'Tamamlanan', count: completed, icon: '✅', gradient: 'from-emerald-500 to-green-600', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
     { label: 'Devam Eden', count: active, icon: '⏳', gradient: 'from-amber-500 to-orange-600', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+    { label: 'Yaklaşan', count: upcomingReminders, icon: '🔔', gradient: 'from-blue-500 to-cyan-600', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
   ]
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <div
             key={stat.label}
