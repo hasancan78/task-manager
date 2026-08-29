@@ -36,13 +36,12 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
   }
 
   const getReminderBadge = () => {
-    if (task.reminderMinutes == null || task.reminderMinutes < 0) return null
+    if (!task.reminders || task.reminders.length === 0) return null
     if (!task.dueDate || !task.dueTime) return null
 
-    const reminderInfo = REMINDER_OPTIONS.find(r => r.value === task.reminderMinutes)
-    const label = reminderInfo ? reminderInfo.label : 'Hatırlatıcı'
+    const allNotified = task.reminders.every(r => r.notified)
 
-    if (task.notified) {
+    if (allNotified) {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
           ✅ Bildirildi
@@ -52,7 +51,7 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
 
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs bg-violet-500/10 text-violet-400 border border-violet-500/20 animate-pulse">
-        🔔 {label}
+        🔔 {task.reminders.length} Hatırlatıcı
       </span>
     )
   }

@@ -43,6 +43,5 @@ export const createDefaultTask = () => ({
   createdAt: new Date().toISOString(),
   dueDate: '',
   dueTime: '',
-  reminderMinutes: -1,
-  notified: false,
+  reminders: [],
 })

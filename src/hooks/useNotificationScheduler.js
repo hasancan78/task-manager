@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { saveTasks, markNotified as markNotifiedDB } from '../utils/reminderDB'
+import { saveTasks, markNotified as markNotifiedDB, getTaskSound } from '../utils/reminderDB'
 import { playNotificationSound } from '../utils/notificationSound'
 
 export function useNotificationScheduler(tasks, setTasks) {
@@ -8,12 +8,8 @@ export function useNotificationScheduler(tasks, setTasks) {
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
   )
 
-  // Bildirim izni iste
   const requestPermission = useCallback(async () => {
-    if (!('Notification' in window)) {
-      console.warn('Bu tarayıcı bildirimleri desteklemiyor')
-      return 'denied'
-    }
+    if (!('Notification' in window)) return 'denied'
     if (Notification.permission === 'granted') {
       setPermissionStatus('granted')
       return 'granted'
@@ -26,25 +22,37 @@ export function useNotificationScheduler(tasks, setTasks) {
     return Notification.permission
   }, [])
 
-  // Bildirim göster
-  const showNotification = useCallback((task, reminderMinutes) => {
+  const playCustomSound = async (taskId) => {
+    try {
+      const base64Audio = await getTaskSound(taskId)
+      if (base64Audio) {
+        const audio = new Audio(base64Audio)
+        await audio.play()
+        return true
+      }
+    } catch (e) {
+      console.warn("Özel ses çalınamadı:", e)
+    }
+    return false
+  }
+
+  const showNotification = useCallback(async (task, reminder) => {
     if (Notification.permission !== 'granted') return
 
     const title = '⏰ TaskFlow Hatırlatıcı'
-    const body = reminderMinutes > 0
-      ? `"${task.title}" görevinize ${reminderMinutes} dakika kaldı!`
+    const body = reminder.minutes > 0
+      ? `"${task.title}" görevinize ${reminder.minutes} dakika kaldı!`
       : `"${task.title}" görevinizin zamanı geldi!`
 
     const options = {
       body,
       icon: '/pwa-192x192.png',
       badge: '/pwa-192x192.png',
-      tag: `reminder-${task.id}`,
+      tag: `reminder-${task.id}-${reminder.id}`,
       vibrate: [200, 100, 200],
       requireInteraction: true,
     }
 
-    // Service worker üzerinden bildirim (arka planda da çalışır)
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.ready.then(registration => {
         registration.showNotification(title, options)
@@ -53,30 +61,42 @@ export function useNotificationScheduler(tasks, setTasks) {
       new Notification(title, options)
     }
 
-    // Ses çal
-    playNotificationSound()
+    // Ses Çalma Mantığı (Özel ses yoksa veya çalınamazsa standart sesi çal)
+    const playedCustom = await playCustomSound(task.id)
+    if (!playedCustom) {
+      playNotificationSound()
+    }
   }, [])
 
-  // Hatırlatıcıları kontrol et
   const checkReminders = useCallback(() => {
     const now = Date.now()
     let hasChanges = false
 
     const updatedTasks = tasks.map(task => {
-      if (task.completed || task.notified || !task.dueDate || !task.dueTime) return task
+      if (task.completed || !task.dueDate || !task.dueTime || !task.reminders || task.reminders.length === 0) return task
 
       const dueDateTime = new Date(`${task.dueDate}T${task.dueTime}`).getTime()
-      const reminderMinutes = task.reminderMinutes || 0
-      const reminderTime = dueDateTime - (reminderMinutes * 60 * 1000)
+      
+      const updatedReminders = task.reminders.map(rem => {
+        if (rem.notified) return rem
+        
+        const reminderTime = dueDateTime - (rem.minutes * 60 * 1000)
+        
+        // 5 dakikalık bildirim penceresi
+        if (now >= reminderTime && now < reminderTime + 5 * 60 * 1000) {
+          showNotification(task, rem)
+          markNotifiedDB(task.id, rem.id)
+          hasChanges = true
+          return { ...rem, notified: true }
+        }
+        return rem
+      })
 
-      // 5 dakikalık bildirim penceresi içindeyse
-      if (now >= reminderTime && now < reminderTime + 5 * 60 * 1000) {
-        showNotification(task, reminderMinutes)
-        markNotifiedDB(task.id)
-        hasChanges = true
-        return { ...task, notified: true }
+      // Eğer reminders dizisi değiştiyse referansı güncelle
+      if (JSON.stringify(updatedReminders) !== JSON.stringify(task.reminders)) {
+        return { ...task, reminders: updatedReminders }
       }
-
+      
       return task
     })
 
@@ -85,12 +105,10 @@ export function useNotificationScheduler(tasks, setTasks) {
     }
   }, [tasks, setTasks, showNotification])
 
-  // Görevler değiştiğinde IndexedDB'ye yaz
   useEffect(() => {
     saveTasks(tasks).catch(err => console.warn('IndexedDB sync hatası:', err))
   }, [tasks])
 
-  // Periodic sync kaydı (PWA kuruluysa arka planda çalışır)
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.ready.then(async (registration) => {
@@ -100,14 +118,13 @@ export function useNotificationScheduler(tasks, setTasks) {
               minInterval: 60 * 1000,
             })
           } catch (error) {
-            console.log('Periodic sync kaydı başarısız (normal):', error)
+            console.log('Periodic sync hatası (normal):', error)
           }
         }
       })
     }
   }, [])
 
-  // Her 30 saniyede kontrol et
   useEffect(() => {
     checkReminders()
     intervalRef.current = setInterval(checkReminders, 30000)
@@ -116,15 +133,17 @@ export function useNotificationScheduler(tasks, setTasks) {
     }
   }, [checkReminders])
 
-  // Kaçırılan hatırlatıcıları kontrol et (uygulama ilk açıldığında)
   const getMissedReminders = useCallback(() => {
     const now = Date.now()
     return tasks.filter(task => {
-      if (task.completed || task.notified || !task.dueDate || !task.dueTime) return false
+      if (task.completed || !task.dueDate || !task.dueTime || !task.reminders) return false
       const dueDateTime = new Date(`${task.dueDate}T${task.dueTime}`).getTime()
-      const reminderMinutes = task.reminderMinutes || 0
-      const reminderTime = dueDateTime - (reminderMinutes * 60 * 1000)
-      return now > reminderTime + 5 * 60 * 1000
+      
+      return task.reminders.some(rem => {
+        if (rem.notified) return false
+        const reminderTime = dueDateTime - (rem.minutes * 60 * 1000)
+        return now > reminderTime + 5 * 60 * 1000 // 5 dakikalık pencere kaçmışsa
+      })
     })
   }, [tasks])
 

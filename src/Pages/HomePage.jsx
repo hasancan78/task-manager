@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { useNotificationScheduler } from '../hooks/useNotificationScheduler'
+import { saveTaskSound, getTaskSound, deleteTaskSound } from '../utils/reminderDB'
 import { FILTERS, PRIORITIES, CATEGORIES, REMINDER_OPTIONS } from '../Interfaces/taskTypes'
 import Navbar from '../Components/Navbar'
 import TaskForm from '../Components/TaskForm'
@@ -25,7 +26,9 @@ export default function HomePage({ isInstallable, installApp }) {
   const [editCategory, setEditCategory] = useState('personal')
   const [editDueDate, setEditDueDate] = useState('')
   const [editDueTime, setEditDueTime] = useState('')
-  const [editReminderMinutes, setEditReminderMinutes] = useState(-1)
+  const [editReminders, setEditReminders] = useState([])
+  const [editSoundBase64, setEditSoundBase64] = useState(null)
+  const [newReminderValue, setNewReminderValue] = useState(0)
 
   // Bildirim sistemi
   const {
@@ -35,7 +38,6 @@ export default function HomePage({ isInstallable, installApp }) {
     getMissedReminders,
   } = useNotificationScheduler(tasks, setTasks)
 
-  // Kaçırılan hatırlatıcılar
   const [showMissedBanner, setShowMissedBanner] = useState(false)
   const missedReminders = getMissedReminders()
 
@@ -45,10 +47,8 @@ export default function HomePage({ isInstallable, installApp }) {
     }
   }, [missedReminders.length])
 
-  // İlk yüklemede bildirim izni iste
   useEffect(() => {
     if (hasNotificationSupport && Notification.permission === 'default') {
-      // 3 saniye bekle sonra sor (UX için)
       const timer = setTimeout(() => {
         requestPermission()
       }, 3000)
@@ -56,25 +56,25 @@ export default function HomePage({ isInstallable, installApp }) {
     }
   }, [hasNotificationSupport, requestPermission])
 
-  // CREATE
-  const addTask = (taskData) => {
+  const addTask = async (taskData, soundBase64) => {
     const newTask = {
       id: uuidv4(),
       ...taskData,
       completed: false,
-      notified: false,
       createdAt: new Date().toISOString(),
     }
     setTasks([newTask, ...tasks])
+    
+    if (soundBase64) {
+      await saveTaskSound(newTask.id, soundBase64)
+    }
   }
 
-  // UPDATE - toggle
   const toggleTask = (id) => {
     setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t))
   }
 
-  // UPDATE - edit
-  const openEditModal = (task) => {
+  const openEditModal = async (task) => {
     setEditingTask(task)
     setEditTitle(task.title)
     setEditDescription(task.description)
@@ -82,11 +82,23 @@ export default function HomePage({ isInstallable, installApp }) {
     setEditCategory(task.category)
     setEditDueDate(task.dueDate || '')
     setEditDueTime(task.dueTime || '')
-    setEditReminderMinutes(task.reminderMinutes != null ? task.reminderMinutes : -1)
+    setEditReminders(task.reminders ? [...task.reminders] : [])
+    
+    const sound = await getTaskSound(task.id)
+    setEditSoundBase64(sound)
   }
 
-  const saveEdit = () => {
+  const handleEditSoundUpload = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => setEditSoundBase64(ev.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  const saveEdit = async () => {
     if (!editTitle.trim()) return
+    
     setTasks(tasks.map(t =>
       t.id === editingTask.id
         ? {
@@ -97,34 +109,45 @@ export default function HomePage({ isInstallable, installApp }) {
             category: editCategory,
             dueDate: editDueDate,
             dueTime: editDueTime,
-            reminderMinutes: editDueDate && editDueTime ? editReminderMinutes : -1,
-            notified: false, // Düzenleme sonrası hatırlatıcıyı sıfırla
+            // Düzenleme sonrası hepsini sıfırla ki tekrar hatırlatsın
+            reminders: editDueDate && editDueTime ? editReminders.map(r => ({ ...r, notified: false })) : [],
           }
         : t
     ))
+    
+    if (editSoundBase64) {
+      await saveTaskSound(editingTask.id, editSoundBase64)
+    } else {
+      await deleteTaskSound(editingTask.id)
+    }
+    
     setEditingTask(null)
   }
 
-  // DELETE
   const confirmDelete = (id) => {
     setDeleteConfirmId(id)
   }
 
-  const deleteTask = () => {
+  const deleteTask = async () => {
     setTasks(tasks.filter(t => t.id !== deleteConfirmId))
+    await deleteTaskSound(deleteConfirmId)
     setDeleteConfirmId(null)
   }
 
-  // Kaçırılan hatırlatıcıları bildirildi olarak işaretle
   const dismissMissed = () => {
     const missedIds = missedReminders.map(t => t.id)
-    setTasks(tasks.map(t =>
-      missedIds.includes(t.id) ? { ...t, notified: true } : t
-    ))
+    setTasks(tasks.map(t => {
+      if (missedIds.includes(t.id)) {
+        return {
+          ...t,
+          reminders: t.reminders.map(r => ({ ...r, notified: true }))
+        }
+      }
+      return t
+    }))
     setShowMissedBanner(false)
   }
 
-  // FILTER & SEARCH
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       task.description.toLowerCase().includes(searchTerm.toLowerCase())
@@ -146,7 +169,6 @@ export default function HomePage({ isInstallable, installApp }) {
       />
       <main className="pb-12">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-          {/* Page Header */}
           <div className="text-center space-y-2">
             <h1 className="text-4xl sm:text-5xl font-bold text-white">
               Görevlerim
@@ -155,7 +177,6 @@ export default function HomePage({ isInstallable, installApp }) {
             <p className="text-gray-400 text-lg">Günlük görevlerinizi organize edin ve takip edin</p>
           </div>
 
-          {/* Kaçırılan Hatırlatıcılar Banner */}
           {showMissedBanner && missedReminders.length > 0 && (
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 animate-in">
               <div className="flex items-start justify-between gap-3">
@@ -185,13 +206,10 @@ export default function HomePage({ isInstallable, installApp }) {
             </div>
           )}
 
-          {/* Stats */}
           <StatsBar tasks={tasks} />
 
-          {/* Add Task Form */}
           <TaskForm onAddTask={addTask} />
 
-          {/* Search & Filter */}
           {tasks.length > 0 && (
             <SearchFilter
               searchTerm={searchTerm}
@@ -201,7 +219,6 @@ export default function HomePage({ isInstallable, installApp }) {
             />
           )}
 
-          {/* Task List or Empty State */}
           {filteredTasks.length > 0 ? (
             <TaskList
               tasks={filteredTasks}
@@ -224,7 +241,7 @@ export default function HomePage({ isInstallable, installApp }) {
             onClose={() => setEditingTask(null)}
             title="Görevi Düzenle"
           >
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Görev Başlığı</label>
                 <input
@@ -232,7 +249,6 @@ export default function HomePage({ isInstallable, installApp }) {
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300"
-                  id="edit-task-title"
                 />
               </div>
               <div>
@@ -242,7 +258,6 @@ export default function HomePage({ isInstallable, installApp }) {
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={3}
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300 resize-none"
-                  id="edit-task-description"
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -251,8 +266,7 @@ export default function HomePage({ isInstallable, installApp }) {
                   <select
                     value={editPriority}
                     onChange={(e) => setEditPriority(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-800 border border-white/10 rounded-xl text-white focus:outline-none focus:border-violet-500/50 transition-all duration-300 appearance-none cursor-pointer"
-                    id="edit-task-priority"
+                    className="w-full px-4 py-3 bg-gray-800 border border-white/10 rounded-xl text-white focus:outline-none focus:border-violet-500/50 transition-all duration-300 appearance-none"
                   >
                     {Object.values(PRIORITIES).map(p => (
                       <option key={p.value} value={p.value}>{p.label}</option>
@@ -264,8 +278,7 @@ export default function HomePage({ isInstallable, installApp }) {
                   <select
                     value={editCategory}
                     onChange={(e) => setEditCategory(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-800 border border-white/10 rounded-xl text-white focus:outline-none focus:border-violet-500/50 transition-all duration-300 appearance-none cursor-pointer"
-                    id="edit-task-category"
+                    className="w-full px-4 py-3 bg-gray-800 border border-white/10 rounded-xl text-white focus:outline-none focus:border-violet-500/50 transition-all duration-300 appearance-none"
                   >
                     {CATEGORIES.map(c => (
                       <option key={c.value} value={c.value}>{c.icon} {c.label}</option>
@@ -279,15 +292,14 @@ export default function HomePage({ isInstallable, installApp }) {
                 <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
                   <span>🔔</span> Hatırlatıcı Ayarları
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs text-gray-400 mb-1.5">Bitiş Tarihi</label>
                     <input
                       type="date"
                       value={editDueDate}
                       onChange={(e) => setEditDueDate(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-gray-800 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-violet-500/50 transition-all duration-300 [color-scheme:dark]"
-                      id="edit-task-duedate"
+                      className="w-full px-3 py-2.5 bg-gray-800 border border-white/10 rounded-lg text-white text-sm focus:outline-none [color-scheme:dark]"
                     />
                   </div>
                   <div>
@@ -297,39 +309,89 @@ export default function HomePage({ isInstallable, installApp }) {
                       value={editDueTime}
                       onChange={(e) => setEditDueTime(e.target.value)}
                       disabled={!editDueDate}
-                      className="w-full px-3 py-2.5 bg-gray-800 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-violet-500/50 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed [color-scheme:dark]"
-                      id="edit-task-duetime"
+                      className="w-full px-3 py-2.5 bg-gray-800 border border-white/10 rounded-lg text-white text-sm focus:outline-none disabled:opacity-40 [color-scheme:dark]"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1.5">Hatırlatıcı</label>
+                </div>
+
+                {/* Hatırlatıcı Ekleme */}
+                <div className="pt-2">
+                  <label className="block text-xs text-gray-400 mb-1.5">Hatırlatıcı Ekle</label>
+                  <div className="flex gap-2">
                     <select
-                      value={editReminderMinutes}
-                      onChange={(e) => setEditReminderMinutes(Number(e.target.value))}
+                      value={newReminderValue}
+                      onChange={(e) => setNewReminderValue(Number(e.target.value))}
                       disabled={!editDueDate || !editDueTime}
-                      className="w-full px-3 py-2.5 bg-gray-800 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-violet-500/50 transition-all duration-300 appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                      id="edit-task-reminder"
+                      className="flex-1 px-3 py-2 bg-gray-800 border border-white/10 rounded-lg text-white text-sm focus:outline-none disabled:opacity-40"
                     >
-                      {REMINDER_OPTIONS.map((r) => (
+                      {REMINDER_OPTIONS.filter(r => r.value >= 0).map((r) => (
                         <option key={r.value} value={r.value}>{r.icon} {r.label}</option>
                       ))}
                     </select>
+                    <button
+                      type="button"
+                      disabled={!editDueDate || !editDueTime}
+                      onClick={() => {
+                        if (!editReminders.find(r => r.minutes === newReminderValue)) {
+                          setEditReminders([...editReminders, { id: uuidv4(), minutes: newReminderValue, notified: false }])
+                        }
+                      }}
+                      className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg disabled:opacity-40 text-sm font-medium transition-colors"
+                    >
+                      Ekle
+                    </button>
                   </div>
+                </div>
+
+                {/* Eklenen Hatırlatıcılar Listesi */}
+                {editReminders.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {editReminders.map(rem => {
+                      const info = REMINDER_OPTIONS.find(r => r.value === rem.minutes)
+                      return (
+                        <span key={rem.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-gray-300">
+                          {info ? info.label : `${rem.minutes} dk önce`}
+                          <button
+                            type="button"
+                            onClick={() => setEditReminders(editReminders.filter(r => r.id !== rem.id))}
+                            className="text-rose-400 hover:text-rose-300 ml-1 font-bold"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Özel Ses Yükleme */}
+                <div className="pt-2">
+                  <label className="block text-xs text-gray-400 mb-1.5">Özel Alarm Sesi (Opsiyonel)</label>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleEditSoundUpload}
+                    className="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-violet-500/20 file:text-violet-400 hover:file:bg-violet-500/30 transition-all cursor-pointer"
+                  />
+                  {editSoundBase64 && (
+                    <div className="mt-2 flex items-center justify-between text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg border border-emerald-500/20">
+                      <span className="flex items-center gap-1">🎵 Özel ses ayarlandı</span>
+                      <button type="button" onClick={() => setEditSoundBase64(null)} className="text-rose-400 hover:text-rose-300">Kaldır</button>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => setEditingTask(null)}
                   className="flex-1 py-3 bg-white/5 border border-white/10 text-gray-300 rounded-xl hover:bg-white/10 transition-all duration-300"
-                  id="cancel-edit-button"
                 >
                   İptal
                 </button>
                 <button
                   onClick={saveEdit}
                   className="flex-1 py-3 bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-semibold rounded-xl shadow-lg shadow-violet-500/25 transition-all duration-300"
-                  id="save-edit-button"
                 >
                   💾 Kaydet
                 </button>
@@ -337,7 +399,6 @@ export default function HomePage({ isInstallable, installApp }) {
             </div>
           </Modal>
 
-          {/* Delete Confirmation Modal */}
           <Modal
             isOpen={!!deleteConfirmId}
             onClose={() => setDeleteConfirmId(null)}
@@ -355,14 +416,12 @@ export default function HomePage({ isInstallable, installApp }) {
                 <button
                   onClick={() => setDeleteConfirmId(null)}
                   className="flex-1 py-3 bg-white/5 border border-white/10 text-gray-300 rounded-xl hover:bg-white/10 transition-all duration-300"
-                  id="cancel-delete-button"
                 >
                   Vazgeç
                 </button>
                 <button
                   onClick={deleteTask}
                   className="flex-1 py-3 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-semibold rounded-xl shadow-lg shadow-rose-500/25 transition-all duration-300"
-                  id="confirm-delete-button"
                 >
                   🗑️ Evet, Sil
                 </button>

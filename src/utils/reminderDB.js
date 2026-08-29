@@ -3,7 +3,8 @@
 
 const DB_NAME = 'taskflow-reminders'
 const STORE_NAME = 'tasks'
-const DB_VERSION = 1
+const SOUNDS_STORE = 'sounds' // New store
+const DB_VERSION = 2 // Incremented
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -14,6 +15,9 @@ function openDB() {
       const db = event.target.result
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains(SOUNDS_STORE)) {
+        db.createObjectStore(SOUNDS_STORE, { keyPath: 'taskId' })
       }
     }
   })
@@ -42,7 +46,8 @@ export async function getTasks() {
   })
 }
 
-export async function markNotified(taskId) {
+// Rewrite markNotified to take taskId and reminderId
+export async function markNotified(taskId, reminderId) {
   const db = await openDB()
   const tx = db.transaction(STORE_NAME, 'readwrite')
   const store = tx.objectStore(STORE_NAME)
@@ -50,12 +55,46 @@ export async function markNotified(taskId) {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => {
       const task = request.result
-      if (task) {
-        task.notified = true
+      if (task && task.reminders) {
+        const rem = task.reminders.find(r => r.id === reminderId)
+        if (rem) rem.notified = true
         store.put(task)
       }
       tx.oncomplete = () => resolve()
     }
     request.onerror = () => reject(request.error)
+  })
+}
+
+export async function saveTaskSound(taskId, base64Sound) {
+  const db = await openDB()
+  const tx = db.transaction(SOUNDS_STORE, 'readwrite')
+  const store = tx.objectStore(SOUNDS_STORE)
+  store.put({ taskId, data: base64Sound })
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+}
+
+export async function getTaskSound(taskId) {
+  const db = await openDB()
+  const tx = db.transaction(SOUNDS_STORE, 'readonly')
+  const store = tx.objectStore(SOUNDS_STORE)
+  const request = store.get(taskId)
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result?.data || null)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+export async function deleteTaskSound(taskId) {
+  const db = await openDB()
+  const tx = db.transaction(SOUNDS_STORE, 'readwrite')
+  const store = tx.objectStore(SOUNDS_STORE)
+  store.delete(taskId)
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
   })
 }
