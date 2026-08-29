@@ -63,7 +63,7 @@ export default function TaskForm({ onAddTask }) {
         </span>
       </button>
 
-      <div className={`transition-all duration-500 ease-in-out ${isOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'} overflow-hidden`}>
+      <div className={`transition-all duration-500 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'} overflow-hidden`}>
         <form onSubmit={handleSubmit} className="p-5 pt-0 space-y-4">
           <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-4" />
 
